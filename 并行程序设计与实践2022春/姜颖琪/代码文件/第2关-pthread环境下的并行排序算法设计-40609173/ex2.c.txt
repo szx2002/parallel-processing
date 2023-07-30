@@ -1,0 +1,108 @@
+#include <stdio.h>
+#include <pthread.h>
+#include <math.h>
+#include <stdlib.h>
+struct ThreadArg
+{
+    int* arr;
+    int start;
+    int end;
+};
+
+//思路：
+//快排的原理为 先找到第一个数对应的位置，然后对两边分别排序，由于两边是单独的因此可以直接并行操作
+/***** Begin *****/
+
+int partition(int arr[], int low, int high){
+    
+    int key;
+    key = arr[low];
+    while(low<high){
+        while(low <high && arr[high]>= key )
+            high--;
+        if(low<high)
+            arr[low++] = arr[high];
+        while( low<high && arr[low]<=key )
+            low++;
+        if(low<high)
+            arr[high--] = arr[low];
+    }
+    arr[low] = key;
+    return low;
+    /*
+	int i, j, t, temp;
+	if(low > high)
+		return;
+    temp = a[low]; //temp中存的就是基准数
+    i = low;
+    j = high;
+    while(i != j) { //顺序很重要，要先从右边开始找
+    	while(a[j] >= temp && i < j)
+    		j--;
+    	while(a[i] <= temp && i < j)//再找右边的
+    		i++;       
+    	if(i < j)//交换两个数在数组中的位置
+    	{
+    		t = a[i];
+    		a[i] = a[j];
+    		a[j] = t;
+    	}
+    }
+    //最终将基准数归位
+    a[low] = a[i];
+    a[i] = temp;
+    return i;
+    */
+}
+
+void quick_sort(struct ThreadArg *arg ){
+    int pos;
+    if (arg->start<arg->end){
+        pos = partition(arg->arr, arg->start, arg->end);
+        pthread_t th1,th2;
+        int ret1,ret2;
+        struct ThreadArg arg1;
+        arg1.arr = arg->arr;
+        arg1.start = arg->start;
+        arg1.end = pos-1;
+        struct ThreadArg arg2;
+        arg2.arr = arg->arr;
+        arg2.start = pos+1;
+        arg2.end = arg->end;
+        ret1 = pthread_create(&th1,NULL,quick_sort,(void *)&arg1);
+        if( ret1 != 0 ){  
+            printf("Create thread1 error!\n");  
+            return -1;  
+        }        
+        ret2 = pthread_create(&th2,NULL,quick_sort,(void *)&arg2);
+        if( ret2 != 0 ){  
+            printf("Create thread2 error!\n");  
+            return -1;  
+        }  
+        pthread_join(th1, NULL);
+        pthread_join(th2, NULL);
+    }
+
+    return;
+}
+int main()
+{   
+    int  n = 0;
+    scanf("%d",&n);
+    int a[1000];
+    for(int i = 0;i<n;i++){
+        scanf("%d",&a[i]);
+    }
+    struct ThreadArg args;
+    args.arr = a;
+    args.start = 0;
+    args.end = n-1;
+    quick_sort(&args);
+    for(int i = 0;i<n;i++){
+        printf("%d ",a[i]);
+    }
+	return 0;
+}
+
+
+/***** End *****/

@@ -1,0 +1,101 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <mpi.h>
+#include <math.h>
+#include <string.h>
+
+
+//利用mpi的话，直接每一行开整就完了
+//每一行用组合公式
+
+//计算第n行的第a个数
+int calCom(int n,int k){
+    //能保证我给的参数不会出事就不判错了
+    //有需要再说
+    if(k == 0||k == n ){
+        return 1 ;
+    }
+    int num1=1, num2=1;
+    //计算n!/(n-r)!
+    for (int i = 0; i < k; i++){
+        num1 = num1*(n-i);
+    }
+    //计算r!
+    for (int i = 1; i <= k; i++){
+        num2 = num2*i;
+    }
+    return (num1 / num2);
+}
+int main(int argv,char* argc[])
+{
+    int n = 0;
+    
+    //scanf("%d",&n);
+    //printf("%d",argv);
+    int numprocs, myid, source;  
+    MPI_Status status;
+    MPI_Init(&argv, &argc);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+
+    //既然只开四个进程，就一个主进程，三个轮流干活吧
+    //
+    if(myid==0){
+        int a[10][10];
+        scanf("%d",&n);
+        //首先把n全部送到三个计算进程
+        MPI_Send((void *)&n,  1, MPI_INT, 1, 69, MPI_COMM_WORLD);  
+        MPI_Send((void *)&n,  1, MPI_INT, 2, 69, MPI_COMM_WORLD); 
+        MPI_Send((void *)&n,  1, MPI_INT, 3, 69, MPI_COMM_WORLD); 
+        
+        //然后等个signal吧，三个进程全部计算完毕之后就开始打印
+        for(int i = 0 ; i < n; i++){
+            for(int k = 0;k<=i;k++){
+                int tag = i%3+1+89;
+                int temp;
+                MPI_Recv((void *)&temp, 1, MPI_INT, i%3+1, tag, MPI_COMM_WORLD, &status);
+                a[i][k] = temp;
+            }
+        }
+        //以下是打印部分
+        int i =0;
+        int j =0;
+        printf("[");
+        for(i=0;i<n-1;i++)
+        {
+            printf("[");
+            printf("%d",a[i][0]);
+            for(j=1;j<=i;j++)
+            {
+                printf(",%d",a[i][j]);
+            }
+            printf("],");   //这里还能优化一步，改成第一个不加括号，但是测试集不要求我也不搞了
+        }
+        printf("[");
+        printf("%d",a[i][0]);
+    
+        for(j=1;j<=i;j++)
+        {
+            printf(",%d",a[i][j]);
+        }
+
+        printf("]");
+        printf("]");
+        //printf("%d",myid);
+    }else{
+        //首先接收n
+        MPI_Recv((void *)&n, 1, MPI_INT, 0, 69, MPI_COMM_WORLD, &status);
+        //只有三个进程，所以轮转调度
+        //这里注意下是小于n还是n-1
+        // printf("%d",n);
+        for(int i = myid-1 ; i < n; i+=3){
+            for(int k = 0;k<=i;k++){
+                int temp = calCom(i,k);
+                int tag = 89+myid;
+                MPI_Send((void *)&temp, 1, MPI_INT, 0, tag, MPI_COMM_WORLD);
+            }
+        }
+    }
+    MPI_Finalize();
+	return 0;
+}

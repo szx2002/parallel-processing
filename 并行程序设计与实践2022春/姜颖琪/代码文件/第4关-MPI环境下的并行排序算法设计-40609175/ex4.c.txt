@@ -1,0 +1,245 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <mpi.h>
+#include <math.h>
+#include <string.h>
+struct ThreadArg
+{
+    int* arr;
+    int start;
+    int end;
+};
+
+// 顺序循环队列
+// #define MaxSize 3	//定义队列中元素的最大个数
+// typedef int ElemType;
+// typedef struct{
+// 	ElemType data[MaxSize];		//存放队列元素
+// 	int front;		//队头指针
+// 	int rear;		//队尾指针
+// }SeqQueue;
+
+// // 初始化队列
+// void InitQueue(SeqQueue& q)
+// {
+// 	q.front = q.rear = 0;
+// }
+
+// // 判断队列是否为空
+// bool QueueEmpty(SeqQueue& q)
+// {
+// 	if (q.rear == q.front)	//队空条件
+// 		return true;
+// 	else
+// 		return false;
+// }
+// //判满
+// bool QueueFull(SeqQueue& q)
+// {
+// 	if ((q.rear+1) % MaxSize == q.front)
+// 		return true;
+//     else
+//         return false;
+// }
+
+// // 入队
+// bool EnQueue(SeqQueue& q, ElemType x)
+// {
+// 	if ((q.rear+1) % MaxSize == q.front)
+// 		return false;		//队列满则报错
+
+// 	q.data[q.rear] = x;		//将x插入队尾
+// 	q.rear = (q.rear + 1) % MaxSize;    //队尾指针后移
+// 	return true;
+// }
+
+// // 出队
+// bool DeQueue(SeqQueue& q, ElemType& x)
+// {
+// 	if (q.rear == q.front)
+// 		return false;	//队空则报错
+
+// 	x = q.data[q.front];
+// 	q.front = (q.front + 1) % MaxSize; //队头指针后移
+// 	return true;
+// }
+
+// // 获取队头元素
+// bool GetHead(SeqQueue& q, ElemType& x)
+// {
+// 	if (q.rear == q.front)
+// 		return false;	//队空则报错
+	
+// 	x = q.data[q.front];
+// 	return true;
+// }
+
+// // 队列中元素的个数
+// int QueueNum(SeqQueue& q)
+// {
+// 	return (q.rear - q.front + MaxSize) % MaxSize;
+// }
+
+int partition(int arr[], int low, int high){
+    
+    int key;
+    key = arr[low];
+    while(low<high){
+        while(low <high && arr[high]>= key )
+            high--;
+        if(low<high)
+            arr[low++] = arr[high];
+        while( low<high && arr[low]<=key )
+            low++;
+        if(low<high)
+            arr[high--] = arr[low];
+    }
+    arr[low] = key;
+    return low;
+
+}
+void quick_sort(struct ThreadArg arg ){
+    int pos;
+    if (arg.start<arg.end){
+        pos = partition(arg.arr, arg.start, arg.end);
+        MPI_Send((void *)&arg.start, 1, MPI_INT, 0, 80, MPI_COMM_WORLD);
+        MPI_Send((void *)&arg.end, 1, MPI_INT, 0, 90, MPI_COMM_WORLD);
+        MPI_Send((void *)&pos, 1, MPI_INT, 0, 85, MPI_COMM_WORLD);
+        //更新部分数组
+        MPI_Send((void *)&arg.arr[arg.start], arg.end-arg.start+1, MPI_INT, 0, 100, MPI_COMM_WORLD);
+    }
+
+    return;
+}
+
+int main(int argv,char* argc[])
+{
+
+    int n = 0;
+    //scanf("%d",&n);
+    //printf("%d",argv);
+    int numprocs, myid, source;  
+    MPI_Status status;
+    MPI_Init(&argv, &argc);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+    
+    //既然只开四个进程，能想到的比较合理的方法就是一个主进程输入输出
+    //一个次主进程进行第一次，后面分开后两边各干各的
+    //重点在传参数  似乎只能全部传了
+    if(myid==0){
+        int a[1000];
+        scanf("%d",&n);
+        //struct SeqQueue queue;
+        int proidfornow=0;
+        //InitQueue(&queue);
+        for(int i = 0;i<n;i++){
+            scanf("%d",&a[i]);
+        }
+        //首先把n全部送到三个计算进程
+        MPI_Send((void *)&n,  1, MPI_INT, 1, 69, MPI_COMM_WORLD);  
+        MPI_Send((void *)&n,  1, MPI_INT, 2, 69, MPI_COMM_WORLD); 
+        MPI_Send((void *)&n,  1, MPI_INT, 3, 69, MPI_COMM_WORLD); 
+        //第一步自己先开一遍
+        int pos;
+        int start = 0;
+        int end = n-1;
+        int cnt = 0;
+        if (start<end){
+            pos = partition(a, start, end);
+
+            // EnQueue(queue,1);
+            // EnQueue(queue,2);
+
+            // for(int i = 0;i<pos-1;i++){
+            //    MPI_Send((void *)&a[i],  1, MPI_INT, 1, 99+i, MPI_COMM_WORLD); 
+            // }
+            int pos1 = pos-1;
+            int pos2 = pos+1;
+            MPI_Send((void *)a,  n, MPI_INT, 1, 100, MPI_COMM_WORLD);
+            MPI_Send((void *)&start,  1, MPI_INT, 1, 80, MPI_COMM_WORLD);
+            MPI_Send((void *)&pos1,  1, MPI_INT, 1, 90, MPI_COMM_WORLD);
+
+            // for(int i = pos+1;i<end;i++){
+            //    MPI_Send((void *)&a[i],  1, MPI_INT, 2, 99+i, MPI_COMM_WORLD); 
+            // }
+            MPI_Send((void *)a,  n, MPI_INT, 2, 100, MPI_COMM_WORLD);
+            MPI_Send((void *)&pos2,  1, MPI_INT, 2, 80, MPI_COMM_WORLD);
+            MPI_Send((void *)&end,  1, MPI_INT, 2, 90, MPI_COMM_WORLD);
+            proidfornow++;
+            proidfornow++;
+            cnt++;
+        }
+        while(1){
+            MPI_Recv((void *)&start, 1, MPI_INT, MPI_ANY_SOURCE, 80, MPI_COMM_WORLD, &status);
+            MPI_Recv((void *)&end, 1, MPI_INT, status.MPI_SOURCE, 90, MPI_COMM_WORLD, &status);
+            MPI_Recv((void *)&pos, 1, MPI_INT, status.MPI_SOURCE, 85, MPI_COMM_WORLD, &status);
+            MPI_Recv((void *)&a[start], end-start+1, MPI_INT, status.MPI_SOURCE, 100, MPI_COMM_WORLD, &status);
+            cnt++;
+            if(start == pos-1){
+                cnt++;
+            }else if(pos-1 > start){
+                int pos1 = pos-1;
+                MPI_Send((void *)a, n, MPI_INT, proidfornow, 100, MPI_COMM_WORLD);
+                MPI_Send((void *)&start, 1, MPI_INT, proidfornow, 80, MPI_COMM_WORLD);
+                MPI_Send((void *)&pos1, 1, MPI_INT, proidfornow, 90, MPI_COMM_WORLD);
+                proidfornow = proidfornow % 3;
+                proidfornow++;
+            }
+            if(pos+1 == end){
+                cnt++;
+            }else if(end > pos+1){
+                int pos2 = pos+1;
+                MPI_Send((void *)a, n, MPI_INT, proidfornow, 100, MPI_COMM_WORLD);
+                MPI_Send((void *)&pos2, 1, MPI_INT, proidfornow, 80, MPI_COMM_WORLD);
+                MPI_Send((void *)&end, 1, MPI_INT, proidfornow, 90, MPI_COMM_WORLD);
+                proidfornow = proidfornow % 3;
+                proidfornow++;
+            }		
+        
+            if(cnt == n){
+                int exitPro = -1;
+                for(proidfornow=1; proidfornow<=3; proidfornow++){
+                    MPI_Send((void *)a, n, MPI_INT, proidfornow, 100, MPI_COMM_WORLD);
+                    MPI_Send((void *)&exitPro, 1, MPI_INT, proidfornow, 80, MPI_COMM_WORLD);
+                }
+                break;
+            }
+        }
+
+
+        //打印部分
+        for(int i=0; i<n-1; i++){	
+            printf("%d ", a[i]);
+        }
+        printf("%d", a[n-1]);
+        //printf("%d",myid);   
+    }else{
+        //接收n
+        MPI_Recv((void *)&n, 1, MPI_INT, 0, 69, MPI_COMM_WORLD, &status);
+        int a[1000];
+        int pos,start,end;
+        struct ThreadArg arg;
+        while(1){
+            //需要判断结束条件
+            MPI_Recv((void *)a,  n, MPI_INT, 0, 100, MPI_COMM_WORLD, &status);
+            MPI_Recv((void *)&start,  1, MPI_INT, 0, 80, MPI_COMM_WORLD, &status);
+            if(start == -1){
+                break;
+            }
+            MPI_Recv((void *)&end,  1, MPI_INT, 0, 90, MPI_COMM_WORLD, &status);
+            
+            arg.arr = a;
+            arg.end = end;
+            arg.start = start;
+            quick_sort(arg);
+        }
+
+
+        
+
+    }
+    MPI_Finalize();
+	return 0;
+}
+
